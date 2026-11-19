@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requireFormOpen } from './formDeadline.js';
+import { collectionName, findDuplicateName, uniqueNameFields } from './formData.js';
 
 const router = Router();
 
@@ -59,31 +60,35 @@ router.post('/', requireFormOpen, async (req, res, next) => {
 	}
 
 	const errors = [];
-	for (const field of ['twitch', 'discord', 'inGameName']) {
+	for (const field of uniqueNameFields) {
 		if (typeof body[field] !== 'string' || body[field].trim().length === 0) {
-			errors.push(`${field}: kötelező, nem üres szöveg.`);
+			errors.push(`${field} név megadása kötelező`);
 		}
+	}
+	if (body.category !== undefined && body.category !== null
+		&& (typeof body.category !== 'string' || body.category.trim().length > 100)) {
+		errors.push('category: legfeljebb 100 karakteres szöveg lehet.');
 	}
 
 	const perks = parseArray(body.perks);
 	if (!Array.isArray(perks) || perks.length !== 4 || !perks.every(isObject)) {
-		errors.push('perks: pontosan 4 objektumot tartalmazó tömb szükséges.');
+		errors.push('Kötelező megadni a 4 perket');
 	} else {
 		validateUniqueIds(perks, 'perks', errors);
 	}
 
 	const addons = parseArray(body.addons);
 	if (!Array.isArray(addons) || addons.length !== 2 || !addons.every(isObject)) {
-		errors.push('addons: pontosan 2 objektumot tartalmazó tömb szükséges.');
+		errors.push('Kötelező megadni a 2 addont');
 	} else {
 		validateUniqueIds(addons, 'addons', errors);
 	}
 
 	if (!accepted(body.privacyAccepted)) {
-		errors.push('privacyAccepted: az adatkezelési tájékoztató elfogadása kötelező.');
+		errors.push('Az adatkezelési tájékoztató elfogadása kötelező.');
 	}
 	if (!accepted(body.rulesAccepted)) {
-		errors.push('rulesAccepted: a versenyszabályzat elfogadása kötelező.');
+		errors.push('A versenyszabályzat elfogadása kötelező.');
 	}
 
 	if (errors.length > 0) {
@@ -103,9 +108,19 @@ router.post('/', requireFormOpen, async (req, res, next) => {
 		rulesAccepted: true,
 		createdAt: new Date(),
 	};
+	if (typeof body.category === 'string' && body.category.trim()) {
+		submission.category = body.category.trim();
+	}
 
 	try {
-		const result = await req.db.collection('formSubmissions').insertOne(submission);
+		const collection = req.db.collection(collectionName);
+		for (const field of uniqueNameFields) {
+			const duplicate = await findDuplicateName(collection, field, submission[field]);
+			if (duplicate) {
+				return res.status(409).json({ error: `A megadott ${field} név már szerepel az adatbázisban.` });
+			}
+		}
+		const result = await collection.insertOne(submission);
 		return res.status(201).json({ id: result.insertedId.toString(), message: 'Űrlap sikeresen beküldve.' });
 	} catch (error) {
 		return next(error);
