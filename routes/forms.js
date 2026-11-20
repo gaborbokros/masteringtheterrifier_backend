@@ -142,7 +142,7 @@ router.post('/', requireFormOpen, async (req, res, next) => {
 		for (const field of uniqueNameFields) {
 			const duplicate = await findDuplicateName(collection, field, submission[field]);
 			if (duplicate) {
-				return res.status(409).json({ details: `A megadott ${field} név már szerepel az adatbázisban.` });
+				return res.status(409).json({ details: [`A megadott ${field} név már szerepel az adatbázisban.` ] });
 			}
 		}
 		const result = await collection.insertOne(submission);
