@@ -23,6 +23,28 @@ function accepted(value) {
 	return value === true || value === 'true' || value === 'on' || value === '1';
 }
 
+function perkCombinationKey(perks) {
+	if (!Array.isArray(perks)) return null;
+	const ids = perks.map((perk) => perk?.id);
+	if (ids.some((id) => (typeof id !== 'string' && typeof id !== 'number')
+		|| (typeof id === 'string' && id.trim().length === 0)
+		|| (typeof id === 'number' && !Number.isFinite(id)))) {
+		return null;
+	}
+	return JSON.stringify(ids.map((id) => String(id).trim()).sort());
+}
+
+async function hasDuplicatePerkCombination(collection, perks) {
+	const submittedKey = perkCombinationKey(perks);
+	if (submittedKey === null) return false;
+
+	const submissions = await collection.find(
+		{ perks: { $exists: true } },
+		{ projection: { perks: 1 } },
+	).toArray();
+	return submissions.some((submission) => perkCombinationKey(submission.perks) === submittedKey);
+}
+
 function validateUniqueIds(values, field, errors) {
 	if (!Array.isArray(values)) {
 		return;
@@ -114,6 +136,9 @@ router.post('/', requireFormOpen, async (req, res, next) => {
 
 	try {
 		const collection = req.db.collection(collectionName);
+		if (await hasDuplicatePerkCombination(collection, submission.perks)) {
+			return res.status(409).json({ error: 'Ezt a perk kombinációt már beküldték.' });
+		}
 		for (const field of uniqueNameFields) {
 			const duplicate = await findDuplicateName(collection, field, submission[field]);
 			if (duplicate) {
