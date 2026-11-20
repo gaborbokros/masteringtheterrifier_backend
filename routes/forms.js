@@ -137,7 +137,7 @@ router.post('/', requireFormOpen, async (req, res, next) => {
 	try {
 		const collection = req.db.collection(collectionName);
 		if (await hasDuplicatePerkCombination(collection, submission.perks)) {
-			return res.status(409).json({ error: 'Ezt a perk kombinációt már beküldték.' });
+			return res.status(409).json({ details: ['Ezt a perk kombinációt már beküldték.'] });
 		}
 		for (const field of uniqueNameFields) {
 			const duplicate = await findDuplicateName(collection, field, submission[field]);
